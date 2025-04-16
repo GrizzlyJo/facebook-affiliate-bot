@@ -1,72 +1,80 @@
-
 import json
-import requests
 import time
-from datetime import datetime
+import requests
+from datetime import datetime, timedelta
 
 PAGE_ID = "618570708006552"
 ACCESS_TOKEN = "EAAYKhaZAQ9jEBOZB2TWdsdoPhYDs6PktySHb7Ey3sh89zO09qI1Mqyvg2ZB8kskExuZAJMTRjMJexNZAdE2BWUZCgWjPZAUpkZBONZAjDDiAXLVORYcJ2LFKguGRKZCHZAcHduHsHigiTB0jhEtUikxIsdAMBJnSqUogj9ZCEUFWCvsONIVPn4EJ0ZCX6ZCApDCUAp50ep"
 
-PRODUCTS_FILE = "products.json"
-POSTED_FILE = "posted_deals.json"
-LOG_FILE = "logs.txt"
+def load_products():
+    with open("products.json", "r", encoding="utf-8") as f:
+        return json.load(f)
 
-def load_json(file_path, default):
+def load_posted():
     try:
-        with open(file_path, "r") as f:
+        with open("posted_deals.json", "r", encoding="utf-8") as f:
             return json.load(f)
-    except:
-        return default
+    except FileNotFoundError:
+        return {}
 
-def save_json(data, file_path):
-    with open(file_path, "w") as f:
-        json.dump(data, f, indent=2)
+def save_posted(posted):
+    with open("posted_deals.json", "w", encoding="utf-8") as f:
+        json.dump(posted, f, indent=2)
 
-def log_error(msg):
-    with open(LOG_FILE, "a") as f:
-        f.write(f"[{datetime.now()}] {msg}\n")
+def post_to_facebook(product):
+    message = f"""🔥 {product['title_fr']} / {product['title_en']}
 
-def post_to_facebook(message):
-    url = f"https://graph.facebook.com/{PAGE_ID}/feed"
+💥 {product['description_fr']}
+💥 {product['description_en']}
+
+💸 Prix régulier: {product['original_price']}$
+🎯 Prix réduit: {product['discounted_price']}$
+🟢 Rabais: {product['discount']}%
+
+🔗 Lien Amazon affilié / Amazon Affiliate Link:
+{product['affiliate_link']}
+
+🛑 *Ce lien est un lien affilié. En tant que Partenaire Amazon, je réalise un bénéfice sur les achats remplissant les conditions requises.*
+"""
+
+    image_url = product.get("image_url", "")
+    url = f"https://graph.facebook.com/{PAGE_ID}/photos"
     payload = {
-        "message": message,
+        "url": image_url,
+        "caption": message,
         "access_token": ACCESS_TOKEN
     }
     response = requests.post(url, data=payload)
+    print(response.json())
     return response.status_code == 200
 
-def format_post(product):
-    return f"""🔥 {product['title_fr']}
-{product['description_fr']}
-💸 Prix régulier : {product['regular_price']} $ | Rabais : {product['discount_percent']} %
-🔗 {product['affiliate_link']}
-
-🔥 {product['title_en']}
-{product['description_en']}
-💸 Regular Price: ${product['regular_price']} | Discount: {product['discount_percent']} %
-🔗 {product['affiliate_link']}
-
-📌 Lien affilié Amazon / Amazon affiliate link."""
-
-def main():
-    posted = load_json(POSTED_FILE, [])
-    products = load_json(PRODUCTS_FILE, [])
-    count = 0
-
-    for product in products:
-        if product["id"] in posted:
-            continue
+def main_loop():
+    print("🔁 Bot démarré...")
+    while True:
         try:
-            message = format_post(product)
-            if post_to_facebook(message):
-                posted.append(product["id"])
-                save_json(posted, POSTED_FILE)
-                count += 1
-                if count >= 5:
-                    break
-            time.sleep(2)
+            products = load_products()
+            posted = load_posted()
+
+            for product in products:
+                deal_id = product["id"]
+                if deal_id not in posted:
+                    print(f"📢 Publication de : {product['title_en']}")
+                    success = post_to_facebook(product)
+                    if success:
+                        posted[deal_id] = str(datetime.now())
+                        save_posted(posted)
+                        print("✅ Posté avec succès !")
+                    else:
+                        print("❌ Erreur de publication.")
+                    break  # une seule publication par cycle
+
         except Exception as e:
-            log_error(str(e))
+            print(f"[ERREUR] {e}")
+            with open("logs.txt", "a", encoding="utf-8") as log_file:
+                log_file.write(f"{datetime.now()}: {str(e)}\n")
+
+        print("⏳ Attente de 2 heures...")
+        time.sleep(2 * 60 * 60)  # 2 heures
 
 if __name__ == "__main__":
-    main()
+    main_loop()
