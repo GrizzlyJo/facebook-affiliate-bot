@@ -21,6 +21,8 @@ SERVICE = "ProductAdvertisingAPI"
 HOST = "webservices.amazon.ca"
 ENDPOINT = f"https://{HOST}/paapi5/searchitems"
 
+DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1362932655716438047/vGmV2dRXYYp2deECwCU_uODBUZmnCK0qYy0xceiYp56WbZeAV8LDlR9msv1d7MPdWyPG"
+
 app = Flask(__name__)
 
 @app.route("/")
@@ -68,6 +70,12 @@ def add_affiliate_tag(url, tag):
     new_query = urlencode(query, doseq=True)
     return urlunparse(parsed._replace(query=new_query))
 
+def send_discord_notification(message):
+    try:
+        requests.post(DISCORD_WEBHOOK, json={"content": message})
+    except Exception as e:
+        print("Failed to send Discord notification:", e)
+
 def get_real_deals():
     now = datetime.utcnow()
     amz_date = now.strftime('%Y%m%dT%H%M%SZ')
@@ -111,7 +119,9 @@ def get_real_deals():
 
     response = requests.post(ENDPOINT, data=request_payload, headers=headers)
     if response.status_code != 200:
-        print("Amazon API error:", response.status_code, response.text)
+        error_message = f"Amazon API error {response.status_code}: {response.text}"
+        print(error_message)
+        send_discord_notification(f"❌ {error_message}")
         return []
 
     data = response.json()
@@ -134,11 +144,12 @@ def get_real_deals():
                     "id": asin,
                     "title": title,
                     "title_en": title,
+                    "title_fr": title,
                     "image": image,
                     "url": url,
-                    "old_price": f"{old_price:.2f}",
-                    "price": f"{new_price:.2f}",
-                    "discount": discount
+                    "regular_price": f"{old_price:.2f}",
+                    "discount_percent": discount,
+                    "price": f"{new_price:.2f}"
                 })
         except Exception as e:
             print("Erreur parsing produit:", e)
@@ -146,34 +157,39 @@ def get_real_deals():
     return deals
 
 def post_to_facebook(product):
-    message = (
-        f"{product['title_fr']}\n\n"
-        f"{product['discount_percent']}% de rabais\n"
-        f"Prix régulier : {product['regular_price']}$\n\n"
-        f"Lien affilié : {product['affiliate_link']}\n"
-        f"(Contient un lien affilié Amazon)\n\n"
-        f"#deal #rabais #promo #amazon #bonplan\n\n"
-        f"{product['title_en']}\n"
-        f"{product['discount_percent']}% off\n"
-        f"Regular price: ${product['regular_price']}\n\n"
-        f"Affiliate link: {product['affiliate_link']}\n"
-        f"(This is an Amazon affiliate link)"
-    )
+    try:
+        product["affiliate_link"] = add_affiliate_tag(product["url"], AFFILIATE_TAG)
+        message = (
+            f"{product['title_fr']}\n\n"
+            f"{product['discount_percent']}% de rabais\n"
+            f"Prix régulier : {product['regular_price']}$\n\n"
+            f"Lien affilié : {product['affiliate_link']}\n"
+            f"(Contient un lien affilié Amazon)\n\n"
+            f"#deal #rabais #promo #amazon #bonplan\n\n"
+            f"{product['title_en']}\n"
+            f"{product['discount_percent']}% off\n"
+            f"Regular price: ${product['regular_price']}\n\n"
+            f"Affiliate link: {product['affiliate_link']}\n"
+            f"(This is an Amazon affiliate link)"
+        )
 
-    image_url = "https://m.media-amazon.com/images/I/61Jw1rBmf4L._AC_SX679_.jpg"  # Si tu n'as pas d'image dans le JSON
+        payload = {
+            'url': product['image'],
+            'caption': message,
+            'access_token': FACEBOOK_PAGE_TOKEN
+        }
 
-    payload = {
-        'url': image_url,
-        'caption': message,
-        'access_token': FACEBOOK_PAGE_TOKEN
-    }
+        response = requests.post(
+            f"https://graph.facebook.com/{FACEBOOK_PAGE_ID}/photos",
+            data=payload
+        )
 
-    response = requests.post(
-        f"https://graph.facebook.com/{FACEBOOK_PAGE_ID}/photos",
-        data=payload
-    )
-
-    print("Posted to Facebook:", response.status_code, response.text)
+        print("Posted to Facebook:", response.status_code, response.text)
+        send_discord_notification(f"✅ Deal posted to Facebook: {product['title_en']} ({product['discount_percent']}% off)")
+    except Exception as e:
+        error_msg = f"Erreur lors de la publication Facebook: {e}"
+        print(error_msg)
+        send_discord_notification(f"❌ {error_msg}")
 
 def run_bot_loop():
     while True:
@@ -184,7 +200,6 @@ def run_bot_loop():
         found = False
         for deal in deals:
             if should_post(deal["id"], posted):
-                deal["affiliate_link"] = add_affiliate_tag(deal["url"], AFFILIATE_TAG)
                 post_to_facebook(deal)
                 posted[deal["id"]] = datetime.now().isoformat()
                 save_posted(posted)
@@ -194,9 +209,8 @@ def run_bot_loop():
         if not found:
             print("No new deals to post right now.")
         print("Waiting 5 minutes before next post...")
-        time.sleep(5 * 60)  # Attente de 5 minutes
+        time.sleep(5 * 60)
 
 if __name__ == "__main__":
     threading.Thread(target=start_web).start()
     run_bot_loop()
-
