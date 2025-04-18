@@ -77,6 +77,33 @@ def post_to_facebook(product):
     }
 
     response = requests.post(
-    f'https://graph.facebook.com/{FACEBOOK_PAGE_ID}/photos',
-    data=payload
-)
+        f'https://graph.facebook.com/{FACEBOOK_PAGE_ID}/photos',
+        data=payload
+    )
+
+    print("Posted to Facebook:", response.status_code, response.text)
+
+def run_bot_loop():
+    while True:
+        posted = load_posted()
+        posted = cleanup_old_posts(posted)
+        deals = get_mock_deals()
+
+        found = False
+        for deal in deals:
+            if should_post(deal["id"], posted):
+                deal["affiliate_link"] = add_affiliate_tag(deal["url"], AFFILIATE_TAG)
+                post_to_facebook(deal)
+                posted[deal["id"]] = datetime.now().isoformat()
+                save_posted(posted)
+                found = True
+                break
+
+        if not found:
+            print("No new deals to post right now.")
+
+        print("Waiting 2 hours before next post...")
+        time.sleep(2 * 60 * 60)  # 2 hours
+
+if __name__ == "__main__":
+    run_bot_loop()
