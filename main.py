@@ -142,20 +142,21 @@ def get_real_deals():
 
 def post_to_facebook(product):
     message = (
-        f"{product['title']}\n\n"
-        f"{product['discount']}% de rabais\n"
-        f"Était {product['old_price']}$, maintenant {product['price']}$\n\n"
+        f"{product['title_fr']}\n\n"
+        f"{product['discount_percent']}% de rabais\n"
+        f"Prix régulier : {product['regular_price']}$\n\n"
         f"Lien affilié : {product['affiliate_link']}\n"
         f"(Contient un lien affilié Amazon)\n\n"
-        f"#deal #rabais #promotion #amazon #bonplan\n\n"
+        f"#deal #rabais #promo #amazon #bonplan\n\n"
         f"{product['title_en']}\n"
-        f"{product['discount']}% off\n"
-        f"Was ${product['old_price']}, now ${product['price']}\n\n"
+        f"{product['discount_percent']}% off\n"
+        f"Regular price: ${product['regular_price']}\n\n"
         f"Affiliate link: {product['affiliate_link']}\n"
         f"(This is an Amazon affiliate link)"
     )
 
-    image_url = product['image']
+    image_url = "https://m.media-amazon.com/images/I/61Jw1rBmf4L._AC_SX679_.jpg"  # Si tu n'as pas d'image dans le JSON
+
     payload = {
         'url': image_url,
         'caption': message,
@@ -163,10 +164,12 @@ def post_to_facebook(product):
     }
 
     response = requests.post(
-        f'https://graph.facebook.com/{FACEBOOK_PAGE_ID}/photos',
+        f"https://graph.facebook.com/{FACEBOOK_PAGE_ID}/photos",
         data=payload
     )
+
     print("Posted to Facebook:", response.status_code, response.text)
+
 
 
 def run_bot_loop():
