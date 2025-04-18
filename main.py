@@ -77,3 +77,6 @@ def post_to_facebook(product):
     }
 
     response = requests.post(
+    f'https://graph.facebook.com/{FACEBOOK_PAGE_ID}/photos',
+    data=payload
+)
