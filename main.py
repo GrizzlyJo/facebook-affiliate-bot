@@ -1,4 +1,3 @@
-
 import json
 import time
 import requests
@@ -88,7 +87,6 @@ def get_real_deals():
         "Marketplace": "www.amazon.ca"
     }
 
-
     request_payload = json.dumps(payload)
     canonical_uri = "/paapi5/searchitems"
     canonical_headers = f"content-encoding:utf-8\ncontent-type:application/json; charset=utf-8\nhost:{HOST}\nx-amz-date:{amz_date}\n"
@@ -177,8 +175,6 @@ def post_to_facebook(product):
 
     print("Posted to Facebook:", response.status_code, response.text)
 
-
-
 def run_bot_loop():
     while True:
         posted = load_posted()
@@ -197,9 +193,10 @@ def run_bot_loop():
 
         if not found:
             print("No new deals to post right now.")
-        print("Waiting 2 hours before next post...")
-        time.sleep(2 * 60 * 60)
+        print("Waiting 5 minutes before next post...")
+        time.sleep(5 * 60)  # Attente de 5 minutes
 
 if __name__ == "__main__":
     threading.Thread(target=start_web).start()
     run_bot_loop()
+
