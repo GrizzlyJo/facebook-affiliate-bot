@@ -70,16 +70,23 @@ def add_affiliate_tag(url, tag):
     return urlunparse(parsed._replace(query=new_query))
 
 def get_real_deals():
-    return [{
-        "id": "TESTPOST001",
-        "title": "🔥 Offre de test – Montre intelligente HD",
-        "title_en": "🔥 Test Deal – Smartwatch HD",
-        "image": "https://m.media-amazon.com/images/I/61Jw1rBmf4L._AC_SX679_.jpg",
-        "url": "https://www.amazon.ca/dp/B0CXYZ123",
-        "old_price": "199.99",
-        "price": "39.99",
-        "discount": 81
-    }]
+    now = datetime.utcnow()
+    amz_date = now.strftime('%Y%m%dT%H%M%SZ')
+    datestamp = now.strftime('%Y%m%d')
+
+    payload = {
+        "Keywords": "deal",
+        "SearchIndex": "All",
+        "Resources": [
+            "Images.Primary.Large",
+            "ItemInfo.Title",
+            "Offers.Listings.Price",
+            "Offers.Listings.SavingBasis"
+        ],
+        "PartnerTag": AFFILIATE_TAG,
+        "PartnerType": "Associates",
+        "Marketplace": "www.amazon.ca"
+    }
 
 
     request_payload = json.dumps(payload)
