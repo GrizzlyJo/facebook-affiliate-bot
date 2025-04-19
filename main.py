@@ -144,7 +144,15 @@ def run_bot_loop():
         time.sleep(60 * 60)  # Wait 1 hour before checking again
 
 if __name__ == "__main__":
+    # Send Discord notification that the bot is live
+    send_discord_notification("✅ **Amazon Affiliate Bot is now LIVE!** 🚀")
+    
     # Start the web server on a separate thread
     threading.Thread(target=start_web).start()
-    # Run the bot loop
-    run_bot_loop()
+    
+    try:
+        # Run the bot loop
+        run_bot_loop()
+    except Exception as e:
+        # Send a Discord notification if the bot stops due to an error
+        send_discord_notification(f"❌ **Amazon Affiliate Bot has stopped!** Error: {str(e)}")
