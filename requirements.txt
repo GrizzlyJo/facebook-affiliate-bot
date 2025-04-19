@@ -7,3 +7,4 @@ idna==3.10
 urllib3==1.26.20
 certifi==2025.1.31
 sgmllib3k==1.0.0
+Werkzeug==2.2.2
