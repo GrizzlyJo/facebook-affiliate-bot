@@ -2,26 +2,18 @@ import json
 import time
 import requests
 import threading
-import hashlib
-import hmac
-import os
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+import feedparser
 from flask import Flask
 
 FACEBOOK_PAGE_ID = "618570708006552"
 FACEBOOK_PAGE_TOKEN = "EAAYKhaZAQ9jEBOZB2TWdsdoPhYDs6PktySHb89zO09qI1Mqyvg2ZB8kskExuZAJMTRjMJexNZAdE2BWUZCgWjPZAUpkZBONZAjDDiAXLVORYcJ2LFKguGRKZCHZAcHduHsHigiTB0jhEtUikxIsdAMBJnSqUogj9ZCEUFWCvsONIVPn4EJ0ZCX6ZCApDCUAp50ep"
 AFFILIATE_TAG = "facebook_page01-20"
-ACCESS_KEY = os.environ.get("AMAZON_ACCESS_KEY")
-SECRET_KEY = os.environ.get("AMAZON_SECRET_KEY")
 POSTED_FILE = "posted_deals.json"
-
-REGION = "ca"
-SERVICE = "ProductAdvertisingAPI"
-HOST = "webservices.amazon.ca"
-ENDPOINT = f"https://{HOST}/paapi5/searchitems"
-
 DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1362932655716438047/vGmV2dRXYYp2deECwCU_uODBUZmnCK0qYy0xceiYp56WbZeAV8LDlR9msv1d7MPdWyPG"
+
+RSS_FEED_URL = "https://www.amazon.ca/gp/rss/bestsellers/aps"
 
 app = Flask(__name__)
 
@@ -31,16 +23,6 @@ def home():
 
 def start_web():
     app.run(host="0.0.0.0", port=10000)
-
-def sign(key, msg):
-    return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
-
-def get_signature_key(key, dateStamp, regionName, serviceName):
-    kDate = sign(("AWS4" + key).encode("utf-8"), dateStamp)
-    kRegion = sign(kDate, regionName)
-    kService = sign(kRegion, serviceName)
-    kSigning = sign(kService, "aws4_request")
-    return kSigning
 
 def load_posted():
     try:
@@ -76,99 +58,35 @@ def send_discord_notification(message):
     except Exception as e:
         print("Failed to send Discord notification:", e)
 
-def get_real_deals():
-    now = datetime.utcnow()
-    amz_date = now.strftime('%Y%m%dT%H%M%SZ')
-    datestamp = now.strftime('%Y%m%d')
-
-    payload = {
-        "Keywords": "deal",
-        "SearchIndex": "All",
-        "Resources": [
-            "Images.Primary.Large",
-            "ItemInfo.Title",
-            "Offers.Listings.Price",
-            "Offers.Listings.SavingBasis"
-        ],
-        "PartnerTag": AFFILIATE_TAG,
-        "PartnerType": "Associates",
-        "Marketplace": "www.amazon.ca"
-    }
-
-    request_payload = json.dumps(payload)
-    canonical_uri = "/paapi5/searchitems"
-    canonical_headers = f"content-encoding:utf-8\ncontent-type:application/json; charset=utf-8\nhost:{HOST}\nx-amz-date:{amz_date}\n"
-    signed_headers = "content-encoding;content-type;host;x-amz-date"
-    payload_hash = hashlib.sha256(request_payload.encode("utf-8")).hexdigest()
-
-    canonical_request = f"POST\n{canonical_uri}\n\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
-    algorithm = "AWS4-HMAC-SHA256"
-    credential_scope = f"{datestamp}/{REGION}/{SERVICE}/aws4_request"
-    string_to_sign = f"{algorithm}\n{amz_date}\n{credential_scope}\n{hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()}"
-
-    signing_key = get_signature_key(SECRET_KEY, datestamp, REGION, SERVICE)
-    signature = hmac.new(signing_key, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
-
-    headers = {
-        "Content-Encoding": "utf-8",
-        "Content-Type": "application/json; charset=utf-8",
-        "Host": HOST,
-        "X-Amz-Date": amz_date,
-        "Authorization": f"{algorithm} Credential={ACCESS_KEY}/{credential_scope}, SignedHeaders={signed_headers}, Signature={signature}"
-    }
-
-    response = requests.post(ENDPOINT, data=request_payload, headers=headers)
-    if response.status_code != 200:
-        error_message = f"Amazon API error {response.status_code}: {response.text}"
-        print(error_message)
-        send_discord_notification(f"❌ {error_message}")
-        return []
-
-    data = response.json()
+def get_rss_deals():
+    feed = feedparser.parse(RSS_FEED_URL)
     deals = []
-
-    for item in data.get("SearchResult", {}).get("Items", []):
+    for entry in feed.entries:
         try:
-            title = item["ItemInfo"]["Title"]["DisplayValue"]
-            image = item["Images"]["Primary"]["Large"]["URL"]
-            asin = item["ASIN"]
-            url = f"https://www.amazon.ca/dp/{asin}"
-            price_info = item["Offers"]["Listings"][0]["Price"]
-            saving_basis = item["Offers"]["Listings"][0].get("SavingBasis", {}).get("Amount")
-            new_price = float(price_info["Amount"])
-            old_price = float(saving_basis) if saving_basis else new_price
-            discount = int(100 - ((new_price / old_price) * 100)) if old_price > new_price else 0
-
-            if discount >= 30:
-                deals.append({
-                    "id": asin,
-                    "title": title,
-                    "title_en": title,
-                    "title_fr": title,
-                    "image": image,
-                    "url": url,
-                    "regular_price": f"{old_price:.2f}",
-                    "discount_percent": discount,
-                    "price": f"{new_price:.2f}"
-                })
+            title = entry.title
+            link = entry.link
+            affiliate_link = add_affiliate_tag(link, AFFILIATE_TAG)
+            deals.append({
+                "id": entry.id.split('/')[-1],
+                "title": title,
+                "title_en": title,
+                "title_fr": title,
+                "url": link,
+                "affiliate_link": affiliate_link,
+                "image": entry.media_content[0]['url'] if 'media_content' in entry else ""
+            })
         except Exception as e:
-            print("Erreur parsing produit:", e)
-
+            print("Erreur parsing RSS:", e)
     return deals
 
 def post_to_facebook(product):
     try:
-        product["affiliate_link"] = add_affiliate_tag(product["url"], AFFILIATE_TAG)
         message = (
             f"{product['title_fr']}\n\n"
-            f"{product['discount_percent']}% de rabais\n"
-            f"Prix régulier : {product['regular_price']}$\n\n"
-            f"Lien affilié : {product['affiliate_link']}\n"
+            f"🔗 {product['affiliate_link']}\n"
             f"(Contient un lien affilié Amazon)\n\n"
             f"#deal #rabais #promo #amazon #bonplan\n\n"
             f"{product['title_en']}\n"
-            f"{product['discount_percent']}% off\n"
-            f"Regular price: ${product['regular_price']}\n\n"
             f"Affiliate link: {product['affiliate_link']}\n"
             f"(This is an Amazon affiliate link)"
         )
@@ -185,7 +103,7 @@ def post_to_facebook(product):
         )
 
         print("Posted to Facebook:", response.status_code, response.text)
-        send_discord_notification(f"✅ Deal posted to Facebook: {product['title_en']} ({product['discount_percent']}% off)")
+        send_discord_notification(f"✅ Deal posted to Facebook: {product['title_en']}")
     except Exception as e:
         error_msg = f"Erreur lors de la publication Facebook: {e}"
         print(error_msg)
@@ -195,7 +113,7 @@ def run_bot_loop():
     while True:
         posted = load_posted()
         posted = cleanup_old_posts(posted)
-        deals = get_real_deals()
+        deals = get_rss_deals()
 
         found = False
         for deal in deals:
@@ -208,8 +126,8 @@ def run_bot_loop():
 
         if not found:
             print("No new deals to post right now.")
-        print("Waiting 5 minutes before next post...")
-        time.sleep(5 * 60)
+        print("Waiting 1 hour before next post...")
+        time.sleep(60 * 60)
 
 if __name__ == "__main__":
     threading.Thread(target=start_web).start()
