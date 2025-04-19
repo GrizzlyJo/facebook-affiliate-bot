@@ -6,7 +6,7 @@ import os
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 import feedparser
-gunicorn main:app
+
 
 
 FACEBOOK_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID")
