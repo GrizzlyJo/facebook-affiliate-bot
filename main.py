@@ -8,12 +8,14 @@ from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 import feedparser
 from flask import Flask
 
-# Environment Variables
-FACEBOOK_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID")
-FACEBOOK_PAGE_TOKEN = os.getenv("FACEBOOK_PAGE_TOKEN")
+# URL du webhook Discord directement dans le code
+DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1362932655716438047/vGmV2dRXYYp2deECwCU_uODBUZmnCK0qYy0xceiYp56WbZeAV8LDlR9msv1d7MPdWyPG"
+
+# Variables liées à Facebook
+FACEBOOK_PAGE_ID = "votre_facebook_page_id"  # Remplace ceci par l'ID de ta page Facebook
+FACEBOOK_PAGE_TOKEN = "votre_facebook_page_token"  # Remplace ceci par le token de ta page Facebook
 AFFILIATE_TAG = "facebook_page01-20"
 POSTED_FILE = "posted_deals.json"
-DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 
 # RSS Feed URL
 RSS_FEED_URL = "https://www.amazon.ca/gp/rss/bestsellers/aps"
@@ -64,9 +66,16 @@ def add_affiliate_tag(url, tag):
 def send_discord_notification(message):
     """Sends a Discord notification."""
     try:
-        requests.post(DISCORD_WEBHOOK, json={"content": message})
+        response = requests.post(
+            DISCORD_WEBHOOK, 
+            json={"content": message}
+        )
+        if response.status_code != 200:
+            print(f"Failed to send Discord notification: {response.status_code} - {response.text}")
+        else:
+            print("Discord notification sent successfully.")
     except Exception as e:
-        print("Failed to send Discord notification:", e)
+        print(f"Error sending Discord notification: {e}")
 
 def get_rss_deals():
     """Fetches the best-selling deals from the Amazon Canada RSS feed."""
@@ -144,15 +153,8 @@ def run_bot_loop():
         time.sleep(60 * 60)  # Wait 1 hour before checking again
 
 if __name__ == "__main__":
-    # Send Discord notification that the bot is live
-    send_discord_notification("✅ **Amazon Affiliate Bot is now LIVE!** 🚀")
-    
     # Start the web server on a separate thread
     threading.Thread(target=start_web).start()
-    
-    try:
-        # Run the bot loop
-        run_bot_loop()
-    except Exception as e:
-        # Send a Discord notification if the bot stops due to an error
-        send_discord_notification(f"❌ **Amazon Affiliate Bot has stopped!** Error: {str(e)}")
+    # Run the bot loop
+    run_bot_loop()
+
