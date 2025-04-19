@@ -6,12 +6,13 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 import feedparser
 from flask import Flask
+import os
 
-FACEBOOK_PAGE_ID = "618570708006552"
-FACEBOOK_PAGE_TOKEN = "EAAYKhaZAQ9jEBOZB2TWdsdoPhYDs6PktySHb89zO09qI1Mqyvg2ZB8kskExuZAJMTRjMJexNZAdE2BWUZCgWjPZAUpkZBONZAjDDiAXLVORYcJ2LFKguGRKZCHZAcHduHsHigiTB0jhEtUikxIsdAMBJnSqUogj9ZCEUFWCvsONIVPn4EJ0ZCX6ZCApDCUAp50ep"
+FACEBOOK_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID")
+FACEBOOK_PAGE_TOKEN = os.getenv("FACEBOOK_PAGE_TOKEN")
 AFFILIATE_TAG = "facebook_page01-20"
 POSTED_FILE = "posted_deals.json"
-DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1362932655716438047/vGmV2dRXYYp2deECwCU_uODBUZmnCK0qYy0xceiYp56WbZeAV8LDlR9msv1d7MPdWyPG"
+DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 
 RSS_FEED_URL = "https://www.amazon.ca/gp/rss/bestsellers/aps"
 
